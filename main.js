@@ -14,6 +14,44 @@ let scam;
 let gui;
 let texture;
 let videoTexture, video;
+let context, audio, src, highshelf, spatial;
+
+/* Initialize the Audio context. Called from init() */
+function initAudioCtx() {
+    audio = document.getElementById('audio');
+
+    audio.addEventListener('play', () => {
+        if (!context) {
+            context = new AudioContext();
+            src = context.createMediaElementSource(audio);
+            spatial = context.createPanner();
+            highshelf = context.createBiquadFilter();
+            src.connect(spatial);
+            spatial.connect(highshelf);
+            highshelf.connect(context.destination);
+            highshelf.type = 'highshelf'; // шельфовий фільтр високих частот
+            highshelf.frequency.value = 8000;
+            highshelf.gain.value = 15;
+            context.resume();
+        }
+    })
+    audio.addEventListener('pause', () => {
+        console.log('pause');
+        context.resume();
+    })
+    const highshelfEnabled = document.getElementById('highshelf');
+    highshelfEnabled.addEventListener('change', function () {
+        if (highshelfEnabled.checked) {
+            spatial.disconnect();
+            spatial.connect(highshelf);
+            highshelf.connect(context.destination);
+        } else {
+            spatial.disconnect();
+            spatial.connect(context.destination);
+        }
+    });
+    audio.play();
+}
 
 function CreateVideoTexture() {
     const texture = gl.createTexture();
@@ -231,7 +269,12 @@ function draw() {
     bgSurface.Draw();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.clear(gl.DEPTH_BUFFER_BIT)
-   
+    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, m4.translation(Math.sin(Date.now() * 0.001), 0, Math.cos(Date.now() * 0.001)));
+    if (spatial) {
+        spatial.setPosition(Math.sin(Date.now() * 0.001), 0, Math.cos(Date.now() * 0.001));
+    }
+    light[0].DrawSphere();
+    gl.clear(gl.DEPTH_BUFFER_BIT)
     scam.ApplyLeftFrustum();
     gl.colorMask(true, false, false, false);
     modelViewProjection = m4.multiply(scam.projection, m4.multiply(scam.modelview, matAccum1));
@@ -245,9 +288,9 @@ function draw() {
     surface.Draw();
     gl.colorMask(true, true, true, true);
     gl.uniform1f(shProgram.iBorder, 1000);
-    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, m4.multiply(modelViewProjection,
-        m4.translation(...CreateDingDongVertex(locatio[0] * 2 * PI, locatio[1] * 2 - 1))));
-    light[0].DrawSphere();
+    // gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, m4.multiply(modelViewProjection,
+    // m4.translation(...CreateDingDongVertex(locatio[0] * 2 * PI, locatio[1] * 2 - 1))));
+
     // light[1].BufferData([-x, -y, -z, 0, 0, 0])
     // light[1].DrawLine();
 }
@@ -463,6 +506,7 @@ function createProgram(gl, vShader, fShader) {
  * initialization function that will be called when the page has loaded
  */
 function init() {
+    initAudioCtx()
     let canvas;
     try {
         canvas = document.getElementById("webglcanvas");
@@ -497,7 +541,7 @@ function init() {
     CreateAnimation();
     texture = LoadTexture()
     videoTexture = CreateVideoTexture()
-   
+
 }
 
 function LoadTexture() {
