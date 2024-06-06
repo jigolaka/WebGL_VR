@@ -6,9 +6,35 @@ let shProgram;                  // A shader program
 let spaceball;                  // A SimpleRotator object that lets the user rotate the view by mouse.
 let light = [];
 let locatio = [0.5, 0.5]
+const bgVertices = [-1, -1, 0, 1, 1, 0, 1, -1, 0, 1, 1, 0, -1, -1, 0, -1, 1, 0]
+const bgTextures = [1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0]
+let bgSurface;
 const { PI, tan } = Math;
 let scam;
 let gui;
+let texture;
+let videoTexture, video;
+
+function CreateVideoTexture() {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return texture
+}
+
+function CreateVideo() {
+    const video = document.createElement('video');
+    video.setAttribute('autoplay', true);
+    navigator.getUserMedia({ video: true, audio: false }, function (stream) {
+        video.srcObject = stream;
+    }, function (e) {
+        console.error('Rejected!', e);
+    });
+    return video;
+}
 
 // Constructor
 function StereoCamera(
@@ -192,6 +218,20 @@ function draw() {
     gl.uniform1f(shProgram.iScale, document.getElementById('scale').value);
     gl.uniform2fv(shProgram.iLocation, locatio);
 
+    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, m4.identity());
+    gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+    gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        video
+    );
+    bgSurface.Draw();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.clear(gl.DEPTH_BUFFER_BIT)
+   
     scam.ApplyLeftFrustum();
     gl.colorMask(true, false, false, false);
     modelViewProjection = m4.multiply(scam.projection, m4.multiply(scam.modelview, matAccum1));
@@ -369,10 +409,14 @@ function initGL() {
     // surface.BufferData(CreateSurfaceData());
 
     surface = new Model('DingDongSurface');
+    bgSurface = new Model('Background');
     let dingDongSurfaceData = CreateDingDongSurfaceData()
     surface.BufferData(dingDongSurfaceData.v);
     surface.BufferDataNormals(dingDongSurfaceData.n);
     surface.BufferDataTexCoords(dingDongSurfaceData.t);
+    bgSurface.BufferData(bgVertices);
+    bgSurface.BufferDataNormals(bgVertices);
+    bgSurface.BufferDataTexCoords(bgTextures);
     light.push(new Model())
     light.push(new Model())
     light[0].BufferData(CreateSphereSurfaceData())
@@ -448,10 +492,12 @@ function init() {
     gui.add(scam, 'EyeSeparation', 0, 100);
     gui.add(scam, 'FOV', 0, 2.5);
     gui.add(scam, 'NearClippingDistance', 0, 11);
-
+    video = CreateVideo();
     draw();
     CreateAnimation();
-    LoadTexture()
+    texture = LoadTexture()
+    videoTexture = CreateVideoTexture()
+   
 }
 
 function LoadTexture() {
@@ -476,4 +522,5 @@ function LoadTexture() {
         console.log("imageLoaded")
         draw()
     }
+    return texture
 }
